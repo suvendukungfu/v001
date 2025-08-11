@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Search, Filter, MapPin, Star, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
-import { mockFacilities } from '../../data/mockData';
+import { facilityService } from '../../services/facilityService';
+import { Facility } from '../../types';
 
 export default function VenuesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -10,6 +11,8 @@ export default function VenuesPage() {
   const [priceRange, setPriceRange] = useState(searchParams.get('price') || '');
   const [rating, setRating] = useState(searchParams.get('rating') || '');
   const [currentPage, setCurrentPage] = useState(1);
+  const [facilities, setFacilities] = useState<Facility[]>([]);
+  const [loading, setLoading] = useState(true);
   const itemsPerPage = 6;
 
   const sports = ['Badminton', 'Tennis', 'Basketball', 'Football', 'Cricket'];
@@ -20,8 +23,25 @@ export default function VenuesPage() {
     { label: 'Over $80', value: '80-999' },
   ];
 
+  // Load facilities on component mount
+  React.useEffect(() => {
+    loadFacilities();
+  }, []);
+
+  const loadFacilities = async () => {
+    setLoading(true);
+    try {
+      const data = await facilityService.getApprovedFacilities();
+      setFacilities(data);
+    } catch (error) {
+      console.error('Error loading facilities:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const filteredVenues = useMemo(() => {
-    let filtered = mockFacilities.filter(venue => venue.status === 'approved');
+    let filtered = facilities;
 
     if (searchTerm) {
       filtered = filtered.filter(venue =>
@@ -51,7 +71,7 @@ export default function VenuesPage() {
     }
 
     return filtered;
-  }, [searchTerm, selectedSport, priceRange, rating]);
+  }, [facilities, searchTerm, selectedSport, priceRange, rating]);
 
   const totalPages = Math.ceil(filteredVenues.length / itemsPerPage);
   const paginatedVenues = filteredVenues.slice(
@@ -78,6 +98,20 @@ export default function VenuesPage() {
     setSearchParams({});
     setCurrentPage(1);
   };
+
+  if (loading) {
+    return (
+      <div className="space-y-8">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Sports Venues</h1>
+          <p className="text-gray-600">Loading amazing sports facilities...</p>
+        </div>
+        <div className="flex justify-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">

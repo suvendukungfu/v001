@@ -1,9 +1,30 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronRight, MapPin, Star, Clock, Users, Calendar, Trophy, ArrowRight } from 'lucide-react';
-import { mockFacilities } from '../../data/mockData';
+import { facilityService } from '../../services/facilityService';
+import { Facility } from '../../types';
 
 export default function HomePage() {
+  const [topVenues, setTopVenues] = React.useState<Facility[]>([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    loadTopVenues();
+  }, []);
+
+  const loadTopVenues = async () => {
+    try {
+      const facilities = await facilityService.getApprovedFacilities();
+      // Get top 3 facilities by rating
+      const sorted = facilities.sort((a, b) => b.rating - a.rating).slice(0, 3);
+      setTopVenues(sorted);
+    } catch (error) {
+      console.error('Error loading top venues:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const popularSports = [
     { name: 'Badminton', icon: '🏸', color: 'bg-blue-100 text-blue-700' },
     { name: 'Tennis', icon: '🎾', color: 'bg-green-100 text-green-700' },
@@ -11,8 +32,6 @@ export default function HomePage() {
     { name: 'Football', icon: '⚽', color: 'bg-red-100 text-red-700' },
     { name: 'Cricket', icon: '🏏', color: 'bg-purple-100 text-purple-700' },
   ];
-
-  const topVenues = mockFacilities.slice(0, 3);
 
   return (
     <div className="space-y-12">
@@ -117,63 +136,70 @@ export default function HomePage() {
             <ChevronRight className="ml-1 h-4 w-4" />
           </Link>
         </div>
-        <div className="grid md:grid-cols-3 gap-6">
-          {topVenues.map((venue) => (
-            <Link
-              key={venue.id}
-              to={`/venues/${venue.id}`}
-              className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-100 hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
-            >
-              <div className="relative h-48">
-                <img
-                  src={venue.photos[0]}
-                  alt={venue.name}
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute top-4 right-4">
-                  <div className="bg-white/90 backdrop-blur-sm rounded-lg px-2 py-1 flex items-center">
-                    <Star className="h-4 w-4 text-yellow-400 fill-current" />
-                    <span className="text-sm font-semibold ml-1">{venue.rating}</span>
+        
+        {loading ? (
+          <div className="flex justify-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-3 gap-6">
+            {topVenues.map((venue) => (
+              <Link
+                key={venue.id}
+                to={`/venues/${venue.id}`}
+                className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-100 hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+              >
+                <div className="relative h-48">
+                  <img
+                    src={venue.photos[0]}
+                    alt={venue.name}
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute top-4 right-4">
+                    <div className="bg-white/90 backdrop-blur-sm rounded-lg px-2 py-1 flex items-center">
+                      <Star className="h-4 w-4 text-yellow-400 fill-current" />
+                      <span className="text-sm font-semibold ml-1">{venue.rating}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div className="p-6">
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">{venue.name}</h3>
-                <div className="flex items-center text-gray-600 mb-3">
-                  <MapPin className="h-4 w-4 mr-1" />
-                  <span className="text-sm">{venue.address.split(',')[1]}</span>
-                </div>
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {venue.sports.slice(0, 2).map((sport) => (
-                    <span
-                      key={sport}
-                      className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-lg"
-                    >
-                      {sport}
-                    </span>
-                  ))}
-                  {venue.sports.length > 2 && (
-                    <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs font-medium rounded-lg">
-                      +{venue.sports.length - 2} more
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-lg font-bold text-gray-900">
-                      ${venue.priceRange.min}
-                    </span>
-                    <span className="text-gray-600 text-sm">/hour</span>
+                <div className="p-6">
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">{venue.name}</h3>
+                  <div className="flex items-center text-gray-600 mb-3">
+                    <MapPin className="h-4 w-4 mr-1" />
+                    <span className="text-sm">{venue.address.split(',')[1]}</span>
                   </div>
-                  <div className="flex items-center text-gray-500 text-sm">
-                    <Clock className="h-4 w-4 mr-1" />
-                    <span>Available</span>
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {venue.sports.slice(0, 2).map((sport) => (
+                      <span
+                        key={sport}
+                        className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-lg"
+                      >
+                        {sport}
+                      </span>
+                    ))}
+                    {venue.sports.length > 2 && (
+                      <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs font-medium rounded-lg">
+                        +{venue.sports.length - 2} more
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-lg font-bold text-gray-900">
+                        ${venue.priceRange.min}
+                      </span>
+                      <span className="text-gray-600 text-sm">/hour</span>
+                    </div>
+                    <div className="flex items-center text-gray-500 text-sm">
+                      <Clock className="h-4 w-4 mr-1" />
+                      <span>Available</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </Link>
-          ))}
-        </div>
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* CTA Section */}

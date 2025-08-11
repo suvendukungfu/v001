@@ -1,109 +1,185 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { User as AuthUser, Session } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabase';
 import { User } from '../types';
 
 interface AuthContextType {
   user: User | null;
+  session: Session | null;
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
   register: (userData: Partial<User> & { password: string }) => Promise<boolean>;
   updateProfile: (userData: Partial<User>) => Promise<boolean>;
   isAuthenticated: boolean;
+  loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock users data
-const mockUsers: (User & { password: string })[] = [
-  {
-    id: '1',
-    email: 'user@example.com',
-    password: 'password123',
-    fullName: 'John Smith',
-    role: 'user',
-    status: 'active',
-    createdAt: new Date('2024-01-01'),
-  },
-  {
-    id: '2',
-    email: 'owner@example.com',
-    password: 'password123',
-    fullName: 'Sarah Johnson',
-    role: 'facility_owner',
-    status: 'active',
-    createdAt: new Date('2024-01-02'),
-  },
-  {
-    id: '3',
-    email: 'admin@example.com',
-    password: 'password123',
-    fullName: 'Mike Admin',
-    role: 'admin',
-    status: 'active',
-    createdAt: new Date('2024-01-03'),
-  },
-];
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check for stored user session
-    const storedUser = localStorage.getItem('quickcourt_user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-    setLoading(false);
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session?.user) {
+        fetchUserProfile(session.user.id);
+      } else {
+        setLoading(false);
+      }
+    });
+
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      setSession(session);
+      
+      if (session?.user) {
+        await fetchUserProfile(session.user.id);
+      } else {
+        setUser(null);
+        setLoading(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  const login = async (email: string, password: string): Promise<boolean> => {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const foundUser = mockUsers.find(u => u.email === email && u.password === password);
-    if (foundUser) {
-      const { password: _, ...userWithoutPassword } = foundUser;
-      setUser(userWithoutPassword);
-      localStorage.setItem('quickcourt_user', JSON.stringify(userWithoutPassword));
-      return true;
+  const fetchUserProfile = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (error) {
+        console.error('Error fetching user profile:', error);
+        setLoading(false);
+        return;
+      }
+
+      if (data) {
+        const userProfile: User = {
+          id: data.id,
+          email: data.email,
+          fullName: data.full_name,
+          avatar: data.avatar_url,
+          role: data.role,
+          status: data.status,
+          createdAt: new Date(data.created_at),
+        };
+        setUser(userProfile);
+      }
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+    } finally {
+      setLoading(false);
     }
-    return false;
+  };
+
+  const login = async (email: string, password: string): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        console.error('Login error:', error);
+        return false;
+      }
+
+      if (data.user) {
+        await fetchUserProfile(data.user.id);
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.error('Login error:', error);
+      return false;
+    }
   };
 
   const register = async (userData: Partial<User> & { password: string }): Promise<boolean> => {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    const newUser: User = {
-      id: String(mockUsers.length + 1),
-      email: userData.email!,
-      fullName: userData.fullName!,
-      role: userData.role || 'user',
-      status: 'active',
-      createdAt: new Date(),
-    };
-    
-    setUser(newUser);
-    localStorage.setItem('quickcourt_user', JSON.stringify(newUser));
-    return true;
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: userData.email!,
+        password: userData.password,
+        options: {
+          data: {
+            full_name: userData.fullName,
+            role: userData.role || 'user',
+          },
+        },
+      });
+
+      if (error) {
+        console.error('Registration error:', error);
+        return false;
+      }
+
+      if (data.user) {
+        // Update the user profile with additional data
+        const { error: updateError } = await supabase
+          .from('users')
+          .update({
+            full_name: userData.fullName,
+            role: userData.role || 'user',
+          })
+          .eq('id', data.user.id);
+
+        if (updateError) {
+          console.error('Profile update error:', updateError);
+        }
+
+        await fetchUserProfile(data.user.id);
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.error('Registration error:', error);
+      return false;
+    }
   };
 
   const updateProfile = async (userData: Partial<User>): Promise<boolean> => {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    if (user) {
-      const updatedUser = { ...user, ...userData };
-      setUser(updatedUser);
-      localStorage.setItem('quickcourt_user', JSON.stringify(updatedUser));
+    if (!user) return false;
+
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({
+          full_name: userData.fullName,
+          avatar_url: userData.avatar,
+          role: userData.role,
+        })
+        .eq('id', user.id);
+
+      if (error) {
+        console.error('Profile update error:', error);
+        return false;
+      }
+
+      // Update local user state
+      setUser(prev => prev ? { ...prev, ...userData } : null);
       return true;
+    } catch (error) {
+      console.error('Profile update error:', error);
+      return false;
     }
-    return false;
   };
 
-  const logout = () => {
+  const logout = async () => {
+    await supabase.auth.signOut();
     setUser(null);
-    localStorage.removeItem('quickcourt_user');
+    setSession(null);
   };
 
   if (loading) {
@@ -116,11 +192,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const value = {
     user,
+    session,
     login,
     logout,
     register,
     updateProfile,
     isAuthenticated: !!user,
+    loading,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

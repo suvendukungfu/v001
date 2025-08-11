@@ -14,15 +14,47 @@ import {
   Calendar,
   ArrowRight
 } from 'lucide-react';
-import { mockFacilities, mockCourts } from '../../data/mockData';
+import { facilityService } from '../../services/facilityService';
+import { Facility, Court } from '../../types';
 
 export default function VenueDetailsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [venue, setVenue] = useState<Facility | null>(null);
+  const [courts, setCourts] = useState<Court[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const venue = mockFacilities.find(v => v.id === id);
-  const venueCourts = mockCourts.filter(c => c.facilityId === id);
+  React.useEffect(() => {
+    if (id) {
+      loadVenueData(id);
+    }
+  }, [id]);
+
+  const loadVenueData = async (venueId: string) => {
+    setLoading(true);
+    try {
+      const [venueData, courtsData] = await Promise.all([
+        facilityService.getFacilityById(venueId),
+        facilityService.getCourtsByFacility(venueId)
+      ]);
+      
+      setVenue(venueData);
+      setCourts(courtsData);
+    } catch (error) {
+      console.error('Error loading venue data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   if (!venue) {
     return (
@@ -58,8 +90,8 @@ export default function VenueDetailsPage() {
   const handleBookNow = (courtId?: string) => {
     if (courtId) {
       navigate(`/book/${venue.id}/${courtId}`);
-    } else if (venueCourts.length > 0) {
-      navigate(`/book/${venue.id}/${venueCourts[0].id}`);
+    } else if (courts.length > 0) {
+      navigate(`/book/${venue.id}/${courts[0].id}`);
     }
   };
 
@@ -179,7 +211,7 @@ export default function VenueDetailsPage() {
           <div>
             <h2 className="text-2xl font-bold text-gray-900 mb-4">Available Courts</h2>
             <div className="space-y-4">
-              {venueCourts.map((court) => (
+              {courts.map((court) => (
                 <div key={court.id} className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-md transition-shadow">
                   <div className="flex items-center justify-between mb-4">
                     <div>
@@ -240,7 +272,7 @@ export default function VenueDetailsPage() {
             <div className="space-y-3">
               <div className="flex justify-between">
                 <span className="text-gray-600">Courts Available</span>
-                <span className="font-semibold">{venueCourts.length}</span>
+                <span className="font-semibold">{courts.length}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Sports Offered</span>
