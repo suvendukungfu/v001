@@ -43,14 +43,16 @@ export default function LoginPage() {
   };
 
   const demoAccounts = [
-    { label: 'User Account', email: 'user@example.com', role: 'User' },
-    { label: 'Facility Owner', email: 'owner@example.com', role: 'Owner' },
-    { label: 'Admin Account', email: 'admin@example.com', role: 'Admin' },
+    { label: 'Admin Account', email: 'admin@quickcourt.com', role: 'Admin' },
   ];
 
   const fillDemoAccount = (email: string) => {
     setEmail(email);
-    setPassword('password123');
+    if (email === 'admin@quickcourt.com') {
+      setPassword('admin');
+    } else {
+      setPassword('password123');
+    }
   };
 
   return (
@@ -69,7 +71,7 @@ export default function LoginPage() {
 
         {/* Demo Accounts */}
         <div className="bg-blue-50 rounded-lg p-4">
-          <p className="text-sm font-medium text-blue-900 mb-3">Quick Demo Access:</p>
+          <p className="text-sm font-medium text-blue-900 mb-3">Admin Access:</p>
           <div className="grid gap-2">
             {demoAccounts.map((account) => (
               <button
@@ -81,6 +83,11 @@ export default function LoginPage() {
                 <div className="text-blue-600">{account.email}</div>
               </button>
             ))}
+          </div>
+          <div className="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <p className="text-xs text-yellow-800">
+              <strong>Note:</strong> Only registered users can login. New users must register first.
+            </p>
           </div>
         </div>
 

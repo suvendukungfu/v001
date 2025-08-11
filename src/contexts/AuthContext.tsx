@@ -84,6 +84,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
+      // Check for hardcoded admin account
+      if (email === 'admin@quickcourt.com' && password === 'admin') {
+        const adminUser: User = {
+          id: 'admin',
+          email: 'admin@quickcourt.com',
+          fullName: 'System Administrator',
+          role: 'admin',
+          status: 'active',
+          createdAt: new Date(),
+        };
+        setUser(adminUser);
+        return true;
+      }
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -95,7 +109,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (data.user) {
-        await fetchUserProfile(data.user.id);
+        // Check if user exists in our users table (registered user)
+        const { data: userProfile, error: profileError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', data.user.id)
+          .single();
+
+        if (profileError || !userProfile) {
+          console.error('User not found in database:', profileError);
+          await supabase.auth.signOut();
+          return false;
+        }
+
+        const user: User = {
+          id: userProfile.id,
+          email: userProfile.email,
+          fullName: userProfile.full_name,
+          avatar: userProfile.avatar_url,
+          role: userProfile.role,
+          status: userProfile.status,
+          createdAt: new Date(userProfile.created_at),
+        };
+        setUser(user);
         return true;
       }
 
@@ -177,7 +213,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
-    await supabase.auth.signOut();
+    // Only sign out from Supabase if not admin
+    if (user?.id !== 'admin') {
+      await supabase.auth.signOut();
+    }
     setUser(null);
     setSession(null);
   };
